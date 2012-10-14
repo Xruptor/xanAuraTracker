@@ -1,0 +1,9 @@
+## Interface: 50001
+## Title: xanAuraTracker
+## Notes: A small addon that tracks auras with a small visual display and alert notification. (user configurated)
+## Author: Xruptor
+## Version: 1.0
+## SavedVariablesPerCharacter: xanAT_DB
+
+config.lua
+xanAuraTracker.lua
