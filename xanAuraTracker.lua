@@ -46,7 +46,7 @@ function f:PLAYER_LOGIN()
 	if xanAT_DB.enable == nil then xanAT_DB.enable = true end
 
 	self:CreateAnchor("XAT_Anchor", UIParent, "xanAuraTracker Anchor")
-	self:CreateFrames()
+	self:BuildAuraListFrames()
 	self:RestoreLayout("XAT_Anchor")
 	
 	--just in case
@@ -205,72 +205,21 @@ function f:CreateAnchor(name, parent, desc)
 	f:RestoreLayout(name)
 end
 
-function f:CreateFrames()
+function f:BuildAuraListFrames()
 	
-	local sWdith = xanAT_DB.size
-	local sHeight = xanAT_DB.size
-	local adj = 0
 	local count = 0
-
+	iconSpellList = {} --empty it out
+	
 	--loop de loop for frame creation
 	for i=1, #auraList do
-	
 		local valChk = auraList[i]
-	
-		if valChk.spec = playerSpec then
+		--only use the ones that match the player spec or if the spec is set to 0
+		if valChk.spec == playerSpec or valChk.spec <= 0 then
 			local name, _, icon = GetSpellInfo(valChk.spellID)
 			if name then
 				count = count + 1
-				if count == 1 then
-					local tmp = CreateFrame("frame", "xanAT"..count, UIParent)
-					tmp:SetWidth(sWdith)
-					tmp:SetHeight(sHeight)
-					tmp:SetPoint("TOPLEFT", XAT_Anchor, "BOTTOMRIGHT", 0, 0)
-					local t = tmp:CreateTexture("$parentIcon", "ARTWORK")
-					t:SetTexture(icon)
-					t:SetWidth(sWdith)
-					t:SetHeight(sHeight)
-					t:SetPoint("TOPLEFT", XAT_Anchor, "BOTTOMRIGHT", 0, 0)
-					local g = tmp:CreateFontString("$parentCount", "OVERLAY")
-					g:SetFont("Fonts\\FRIZQT__.TTF", 20, "OUTLINE")
-					g:SetTextColor( 0.52, 0.96, 0.23)
-					g:SetJustifyH("LEFT")
-					g:SetPoint("CENTER",0)
-					local w = tmp:CreateFontString("$parentTopName", "OVERLAY")
-					w:SetFont("Fonts\\FRIZQT__.TTF", 13, "OUTLINE")
-					w:SetWidth(sWdith+15)
-					w:SetNonSpaceWrap(false)
-					w:SetTextColor( 0.52, 0.96, 0.23)
-					w:SetJustifyH("LEFT")
-					w:SetPoint("TOPLEFT",-2, 15)
-					tmp:Show()
-					adj = adj + (sWdith + 3)
-				else
-					local tmp = CreateFrame("frame", "xanAT"..count, UIParent)
-					tmp:SetWidth(sWdith)
-					tmp:SetHeight(sHeight)
-					tmp:SetPoint("TOPLEFT", XAT_Anchor, "BOTTOMRIGHT", adj, 0)
-					local t = tmp:CreateTexture("$parentIcon", "ARTWORK")
-					t:SetTexture(icon)
-					t:SetWidth(sWdith)
-					t:SetHeight(sHeight)
-					t:SetPoint("TOPLEFT", XAT_Anchor, "BOTTOMRIGHT", adj, 0)
-					local g = tmp:CreateFontString("$parentCount", "OVERLAY")
-					g:SetFont("Fonts\\FRIZQT__.TTF", 20, "OUTLINE")
-					g:SetTextColor( 0.52, 0.96, 0.23)
-					g:SetJustifyH("CENTER")
-					g:SetPoint("CENTER",0)
-					local w = tmp:CreateFontString("$parentTopName", "OVERLAY")
-					w:SetFont("Fonts\\FRIZQT__.TTF", 13, "OUTLINE")
-					w:SetWidth(sWdith+15)
-					w:SetNonSpaceWrap(false)
-					w:SetTextColor( 0.52, 0.96, 0.23)
-					w:SetJustifyH("LEFT")
-					w:SetPoint("TOPLEFT",-2, 15)
-					tmp:Show()
-					adj = adj + (sWdith + 3)
-				end
-				
+				local tmp = f:CreateAuraFrame(count)
+				tmp:Show()
 				--add spell to check list including referrID's
 				iconSpellList[valChk.spellID] = count
 				if valChk.referrID then
@@ -282,6 +231,67 @@ function f:CreateFrames()
 		end
 
 	end
+end
+
+local adj = 0
+
+function f:CreateAuraFrame(sFrameIndex)
+	
+	local sWdith = xanAT_DB.size
+	local sHeight = xanAT_DB.size
+
+	if _G["xanAT"..sFrameIndex] then return _G["xanAT"..sFrameIndex] end
+	
+	local tmp = CreateFrame("frame", "xanAT"..sFrameIndex, UIParent)
+	
+	if sFrameIndex == 1 then
+		tmp:SetWidth(sWdith)
+		tmp:SetHeight(sHeight)
+		tmp:SetPoint("TOPLEFT", XAT_Anchor, "BOTTOMRIGHT", 0, 0)
+		local t = tmp:CreateTexture("$parentIcon", "ARTWORK")
+		t:SetTexture(icon)
+		t:SetWidth(sWdith)
+		t:SetHeight(sHeight)
+		t:SetPoint("TOPLEFT", XAT_Anchor, "BOTTOMRIGHT", 0, 0)
+		local g = tmp:CreateFontString("$parentCount", "OVERLAY")
+		g:SetFont("Fonts\\FRIZQT__.TTF", 20, "OUTLINE")
+		g:SetTextColor( 0.52, 0.96, 0.23)
+		g:SetJustifyH("LEFT")
+		g:SetPoint("CENTER",0)
+		local w = tmp:CreateFontString("$parentTopName", "OVERLAY")
+		w:SetFont("Fonts\\FRIZQT__.TTF", 13, "OUTLINE")
+		w:SetWidth(sWdith+15)
+		w:SetNonSpaceWrap(false)
+		w:SetTextColor( 0.52, 0.96, 0.23)
+		w:SetJustifyH("LEFT")
+		w:SetPoint("TOPLEFT",-2, 15)
+		adj = adj + (sWdith + 3)
+	else
+		tmp:SetWidth(sWdith)
+		tmp:SetHeight(sHeight)
+		tmp:SetPoint("TOPLEFT", XAT_Anchor, "BOTTOMRIGHT", adj, 0)
+		local t = tmp:CreateTexture("$parentIcon", "ARTWORK")
+		t:SetTexture(icon)
+		t:SetWidth(sWdith)
+		t:SetHeight(sHeight)
+		t:SetPoint("TOPLEFT", XAT_Anchor, "BOTTOMRIGHT", adj, 0)
+		local g = tmp:CreateFontString("$parentCount", "OVERLAY")
+		g:SetFont("Fonts\\FRIZQT__.TTF", 20, "OUTLINE")
+		g:SetTextColor( 0.52, 0.96, 0.23)
+		g:SetJustifyH("CENTER")
+		g:SetPoint("CENTER",0)
+		local w = tmp:CreateFontString("$parentTopName", "OVERLAY")
+		w:SetFont("Fonts\\FRIZQT__.TTF", 13, "OUTLINE")
+		w:SetWidth(sWdith+15)
+		w:SetNonSpaceWrap(false)
+		w:SetTextColor( 0.52, 0.96, 0.23)
+		w:SetJustifyH("LEFT")
+		w:SetPoint("TOPLEFT",-2, 15)
+		tmp:Show()
+		adj = adj + (sWdith + 3)
+	end
+
+	return tmp
 end
 
 function f:SaveLayout(frame)
