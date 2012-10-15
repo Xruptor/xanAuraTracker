@@ -219,6 +219,7 @@ function f:BuildAuraListFrames()
 			if name then
 				count = count + 1
 				local tmp = f:CreateAuraFrame(count)
+				tmp.icon:SetTexture(icon)
 				tmp:Show()
 				--add spell to check list including referrID's
 				iconSpellList[valChk.spellID] = count
@@ -249,15 +250,16 @@ function f:CreateAuraFrame(sFrameIndex)
 		tmp:SetHeight(sHeight)
 		tmp:SetPoint("TOPLEFT", XAT_Anchor, "BOTTOMRIGHT", 0, 0)
 		local t = tmp:CreateTexture("$parentIcon", "ARTWORK")
-		t:SetTexture(icon)
 		t:SetWidth(sWdith)
 		t:SetHeight(sHeight)
 		t:SetPoint("TOPLEFT", XAT_Anchor, "BOTTOMRIGHT", 0, 0)
+		tmp.icon = t
 		local g = tmp:CreateFontString("$parentCount", "OVERLAY")
 		g:SetFont("Fonts\\FRIZQT__.TTF", 20, "OUTLINE")
 		g:SetTextColor( 0.52, 0.96, 0.23)
 		g:SetJustifyH("LEFT")
 		g:SetPoint("CENTER",0)
+		tmp.count = g
 		local w = tmp:CreateFontString("$parentTopName", "OVERLAY")
 		w:SetFont("Fonts\\FRIZQT__.TTF", 13, "OUTLINE")
 		w:SetWidth(sWdith+15)
@@ -265,21 +267,22 @@ function f:CreateAuraFrame(sFrameIndex)
 		w:SetTextColor( 0.52, 0.96, 0.23)
 		w:SetJustifyH("LEFT")
 		w:SetPoint("TOPLEFT",-2, 15)
-		adj = adj + (sWdith + 3)
+		tmp.toptext = w
 	else
 		tmp:SetWidth(sWdith)
 		tmp:SetHeight(sHeight)
 		tmp:SetPoint("TOPLEFT", XAT_Anchor, "BOTTOMRIGHT", adj, 0)
 		local t = tmp:CreateTexture("$parentIcon", "ARTWORK")
-		t:SetTexture(icon)
 		t:SetWidth(sWdith)
 		t:SetHeight(sHeight)
 		t:SetPoint("TOPLEFT", XAT_Anchor, "BOTTOMRIGHT", adj, 0)
+		tmp.icon = t
 		local g = tmp:CreateFontString("$parentCount", "OVERLAY")
 		g:SetFont("Fonts\\FRIZQT__.TTF", 20, "OUTLINE")
 		g:SetTextColor( 0.52, 0.96, 0.23)
 		g:SetJustifyH("CENTER")
 		g:SetPoint("CENTER",0)
+		tmp.count = g
 		local w = tmp:CreateFontString("$parentTopName", "OVERLAY")
 		w:SetFont("Fonts\\FRIZQT__.TTF", 13, "OUTLINE")
 		w:SetWidth(sWdith+15)
@@ -287,10 +290,11 @@ function f:CreateAuraFrame(sFrameIndex)
 		w:SetTextColor( 0.52, 0.96, 0.23)
 		w:SetJustifyH("LEFT")
 		w:SetPoint("TOPLEFT",-2, 15)
-		tmp:Show()
-		adj = adj + (sWdith + 3)
+		tmp.toptext = w
 	end
-
+	
+	adj = adj + (sWdith + 3)
+	
 	return tmp
 end
 
