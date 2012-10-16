@@ -6,15 +6,15 @@ local band = bit.band
 local playerClass = select(2, UnitClass("player"))
 local playerName = UnitName("player")
 local playerGUID = UnitGUID("player")
-local playerSpec = GetSpecialization()
+local playerSpec = GetActiveSpecGroup()
 local iconSpellList = {}
+local totalFrames = 0
 
 local auraList = Addon.auraList[playerClass]
 
 --trigger scans
 local triggers = {
 	["CHARACTER_POINTS_CHANGED"] = true,
-	["PLAYER_TALENT_UPDATE"] = true,
 	["PLAYER_DEAD"] = true,
 	["PLAYER_ALIVE"] = true,
 	["ZONE_CHANGED_NEW_AREA"] = true,
@@ -23,7 +23,6 @@ local triggers = {
 	["GLYPH_ADDED"] = true,
 	["GLYPH_REMOVED"] = true,
 	["GLYPH_UPDATED"] = true,
-	["PLAYER_SPECIALIZATION_CHANGED"] = true,
 }
 
 local f = CreateFrame("frame","xanAuraTracker",UIParent)
@@ -53,7 +52,7 @@ function f:PLAYER_LOGIN()
 	playerName = UnitName("player")
 	playerClass = select(2, UnitClass("player"))
 	playerGUID = UnitGUID("player")
-	playerSpec = GetSpecialization()
+	playerSpec = GetActiveSpecGroup()
 	
 	SLASH_XANAURATRACKER1 = "/xanat";
 	SlashCmdList["XANAURATRACKER"] = xanAT_SlashCommand;
@@ -66,7 +65,6 @@ function f:PLAYER_LOGIN()
 	
 	--activate triggers
 	self:RegisterEvent("CHARACTER_POINTS_CHANGED")
-	self:RegisterEvent("PLAYER_TALENT_UPDATE")
 	self:RegisterEvent("PLAYER_DEAD")
 	self:RegisterEvent("PLAYER_ALIVE")
 	self:RegisterEvent("ZONE_CHANGED_NEW_AREA")
@@ -75,7 +73,7 @@ function f:PLAYER_LOGIN()
 	self:RegisterEvent("GLYPH_ADDED")
 	self:RegisterEvent("GLYPH_REMOVED")
 	self:RegisterEvent("GLYPH_UPDATED")
-	self:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+	self:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
 
 	self:UnregisterEvent("PLAYER_LOGIN")
 	self.PLAYER_LOGIN = nil
@@ -133,6 +131,10 @@ end
 ------------------------------
 --         Frames           --
 ------------------------------
+
+function f:ACTIVE_TALENT_GROUP_CHANGED(self, spec)
+	f:BuildAuraListFrames()
+end
 
 function f:CreateAnchor(name, parent, desc)
 
@@ -210,6 +212,14 @@ function f:BuildAuraListFrames()
 	local count = 0
 	iconSpellList = {} --empty it out
 	
+	--hide them all first if they exist
+	for i=1, #auraList do
+		if _G["xanAT"..i] then
+			_G["xanAT"..i].active = false
+			_G["xanAT"..i]:Hide()
+		end
+	end
+	
 	--loop de loop for frame creation
 	for i=1, #auraList do
 		local valChk = auraList[i]
@@ -219,6 +229,7 @@ function f:BuildAuraListFrames()
 			if name then
 				count = count + 1
 				local tmp = f:CreateAuraFrame(count)
+				tmp.active = false
 				tmp.icon:SetTexture(icon)
 				tmp:Show()
 				--add spell to check list including referrID's
@@ -232,9 +243,29 @@ function f:BuildAuraListFrames()
 		end
 
 	end
+
 end
 
-local adj = 0
+local TimerOnUpdate = function(self, time)
+
+	if self.active then
+		self.OnUpdateCounter = (self.OnUpdateCounter or 0) + time
+		if self.OnUpdateCounter < 0.05 then return end
+		self.OnUpdateCounter = 0
+
+		local beforeEnd = self.endTime - GetTime()
+
+		-- if barLength <= 0 then
+			-- self.active = false
+			-- self:Hide()
+			-- f:ArrangeDebuffs(true, self.id)
+			-- return               
+		-- end
+		
+		-- self.timetext:SetText(f:GetTimeText(ceil(beforeEnd)))
+	end
+	
+end
 
 function f:CreateAuraFrame(sFrameIndex)
 	
@@ -244,15 +275,16 @@ function f:CreateAuraFrame(sFrameIndex)
 	if _G["xanAT"..sFrameIndex] then return _G["xanAT"..sFrameIndex] end
 	
 	local tmp = CreateFrame("frame", "xanAT"..sFrameIndex, UIParent)
+	totalFrames = totalFrames + 1
 	
 	if sFrameIndex == 1 then
 		tmp:SetWidth(sWdith)
 		tmp:SetHeight(sHeight)
 		tmp:SetPoint("TOPLEFT", XAT_Anchor, "BOTTOMRIGHT", 0, 0)
 		local t = tmp:CreateTexture("$parentIcon", "ARTWORK")
+		t:SetAllPoints(tmp)
 		t:SetWidth(sWdith)
 		t:SetHeight(sHeight)
-		t:SetPoint("TOPLEFT", XAT_Anchor, "BOTTOMRIGHT", 0, 0)
 		tmp.icon = t
 		local g = tmp:CreateFontString("$parentCount", "OVERLAY")
 		g:SetFont("Fonts\\FRIZQT__.TTF", 20, "OUTLINE")
@@ -260,7 +292,7 @@ function f:CreateAuraFrame(sFrameIndex)
 		g:SetJustifyH("LEFT")
 		g:SetPoint("CENTER",0)
 		tmp.count = g
-		local w = tmp:CreateFontString("$parentTopName", "OVERLAY")
+		local w = tmp:CreateFontString("$parentTopText", "OVERLAY")
 		w:SetFont("Fonts\\FRIZQT__.TTF", 13, "OUTLINE")
 		w:SetWidth(sWdith+15)
 		w:SetNonSpaceWrap(false)
@@ -268,14 +300,22 @@ function f:CreateAuraFrame(sFrameIndex)
 		w:SetJustifyH("LEFT")
 		w:SetPoint("TOPLEFT",-2, 15)
 		tmp.toptext = w
+		local z = tmp:CreateFontString("$parentBottomText", "OVERLAY")
+		z:SetFont("Fonts\\FRIZQT__.TTF", 13, "OUTLINE")
+		z:SetWidth(sWdith+15)
+		z:SetNonSpaceWrap(false)
+		z:SetTextColor( 0.52, 0.96, 0.23)
+		z:SetJustifyH("CENTER")
+		z:SetPoint("CENTER", tmp, "BOTTOM", 0, -9)
+		tmp.bottomtext = z
 	else
 		tmp:SetWidth(sWdith)
 		tmp:SetHeight(sHeight)
-		tmp:SetPoint("TOPLEFT", XAT_Anchor, "BOTTOMRIGHT", adj, 0)
+		tmp:SetPoint("TOPLEFT", _G["xanAT"..sFrameIndex-1], "TOPRIGHT", 3, 0)
 		local t = tmp:CreateTexture("$parentIcon", "ARTWORK")
+		t:SetAllPoints(tmp)
 		t:SetWidth(sWdith)
 		t:SetHeight(sHeight)
-		t:SetPoint("TOPLEFT", XAT_Anchor, "BOTTOMRIGHT", adj, 0)
 		tmp.icon = t
 		local g = tmp:CreateFontString("$parentCount", "OVERLAY")
 		g:SetFont("Fonts\\FRIZQT__.TTF", 20, "OUTLINE")
@@ -283,7 +323,7 @@ function f:CreateAuraFrame(sFrameIndex)
 		g:SetJustifyH("CENTER")
 		g:SetPoint("CENTER",0)
 		tmp.count = g
-		local w = tmp:CreateFontString("$parentTopName", "OVERLAY")
+		local w = tmp:CreateFontString("$parentTopText", "OVERLAY")
 		w:SetFont("Fonts\\FRIZQT__.TTF", 13, "OUTLINE")
 		w:SetWidth(sWdith+15)
 		w:SetNonSpaceWrap(false)
@@ -291,9 +331,17 @@ function f:CreateAuraFrame(sFrameIndex)
 		w:SetJustifyH("LEFT")
 		w:SetPoint("TOPLEFT",-2, 15)
 		tmp.toptext = w
+		local z = tmp:CreateFontString("$parentBottomText", "OVERLAY")
+		z:SetFont("Fonts\\FRIZQT__.TTF", 13, "OUTLINE")
+		z:SetWidth(sWdith+15)
+		z:SetNonSpaceWrap(false)
+		z:SetTextColor( 0.52, 0.96, 0.23)
+		z:SetJustifyH("CENTER")
+		z:SetPoint("CENTER", tmp, "BOTTOM", 0, -9)
+		tmp.bottomtext = z
 	end
 	
-	adj = adj + (sWdith + 3)
+	tmp:SetScript("OnUpdate", TimerOnUpdate)
 	
 	return tmp
 end
@@ -371,40 +419,43 @@ local eventSwitch = {
 function f:COMBAT_LOG_EVENT_UNFILTERED(event, timestamp, eventType, hideCaster, sourceGUID, sourceName, srcFlags, sourceRaidFlags, dstGUID, destName, destFlags, destRaidFlags, spellID, spellName, spellSchool, auraType, amount)
 	if not xanAT_DB.enable then return end
 	if sourceGUID ~= playerGUID then return end
-	
+
 	if eventSwitch[eventType] and spellID and iconSpellList[spellID] then
-		f:doFullScan(spellID)
+		f:doFullScan()
     end
 end
 
-function f:doFullScan(p_SpellID)
+function f:doFullScan()
 	if not xanAT_DB.enable then return end
 	
-	if p_SpellID and iconSpellList[p_SpellID] then
-		--update the icon based on the timer
-		--_G["xanAT"..iconSpellList[p_SpellID]]
-		return
-	end
-
-	for i=1, 40 do -- loop through max 40 buffs
+	local sChk = {}
 	
+	--to cover all our bases and ignore the if aura is active hide, just scan all the auras, the chance of a player having all 40 filled is remote
+	for i=1, 40 do -- loop through max 40 buffs
 		local name, _, icon, charges, _, duration, expTime, unitCaster, _, _, spellId = UnitAura("player", i)
-		if not name then return end
-		
+		if not name then break end
 		if spellId and iconSpellList[spellId] and _G["xanAT"..iconSpellList[spellId]] then
+			sChk[iconSpellList[spellId]] = true
 			--_G["xanAT"..i]:SetAlpha(1)
 			--_G["xanAT"..i.."Count"]:SetText(charges)
 			--_G["xanAT"..i].charges = charges or nil
+			_G["xanAT"..iconSpellList[spellId]]:Show()
 		end
-
 	end
 	
+	for q=1, totalFrames do
+		if not sChk[q] and _G["xanAT"..q] then
+			_G["xanAT"..q].active = false
+			_G["xanAT"..q]:Hide()
+		end
+	end
+
 end
 
 function f:disableAddon()
 	for i=1, #auraList do
 		if _G["xanAT"..i] then
-			_G["xanAT"..i]:SetAlpha(0)
+			_G["xanAT"..i]:Hide()
 		end
 	end
 end
