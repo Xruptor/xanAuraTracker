@@ -231,11 +231,13 @@ function f:BuildAuraListFrames()
 				local tmp = f:CreateAuraFrame(count)
 				tmp.active = false
 				tmp.icon:SetTexture(icon)
+				tmp.spellIcon = valChk.spellID
 				tmp:Show()
 				--add spell to check list including referrID's
 				iconSpellList[valChk.spellID] = count
 				if valChk.referrID then
 					for q=1, #valChk.referrID do
+						local namex, _, icon = GetSpellInfo(valChk.referrID[q])
 						iconSpellList[valChk.referrID[q]] = count
 					end
 				end
@@ -246,6 +248,31 @@ function f:BuildAuraListFrames()
 
 end
 
+local function GetTimeText(timeLeft)
+	local hours, minutes, seconds = 0, 0, 0
+	if( timeLeft >= 3600 ) then
+		hours = ceil(timeLeft / 3600)
+		timeLeft = mod(timeLeft, 3600)
+	end
+
+	if( timeLeft >= 60 ) then
+		minutes = ceil(timeLeft / 60)
+		timeLeft = mod(timeLeft, 60)
+	end
+
+	seconds = timeLeft > 0 and timeLeft or 0
+
+	if hours > 0 then
+		return string.format("%dh",hours)
+	elseif minutes > 0 then
+		return string.format("%dm",minutes)
+	elseif seconds > 0 then
+		return string.format("%ds",seconds)
+	else
+		return nil
+	end
+end
+
 local TimerOnUpdate = function(self, time)
 
 	if self.active then
@@ -254,15 +281,14 @@ local TimerOnUpdate = function(self, time)
 		self.OnUpdateCounter = 0
 
 		local beforeEnd = self.endTime - GetTime()
-
-		-- if barLength <= 0 then
-			-- self.active = false
-			-- self:Hide()
-			-- f:ArrangeDebuffs(true, self.id)
-			-- return               
-		-- end
 		
-		-- self.timetext:SetText(f:GetTimeText(ceil(beforeEnd)))
+		if beforeEnd < 0 then
+			self.active = false
+			self:Hide()
+			return               
+		end
+		
+		self.bottomtext:SetText(GetTimeText(beforeEnd))
 	end
 	
 end
@@ -420,7 +446,7 @@ function f:COMBAT_LOG_EVENT_UNFILTERED(event, timestamp, eventType, hideCaster, 
 	if not xanAT_DB.enable then return end
 	if sourceGUID ~= playerGUID then return end
 
-	if eventSwitch[eventType] and spellID and iconSpellList[spellID] then
+	if eventType and eventSwitch[eventType] and spellID and iconSpellList[spellID] then
 		f:doFullScan()
     end
 end
@@ -432,19 +458,65 @@ function f:doFullScan()
 	
 	--to cover all our bases and ignore the if aura is active hide, just scan all the auras, the chance of a player having all 40 filled is remote
 	for i=1, 40 do -- loop through max 40 buffs
-		local name, _, icon, charges, _, duration, expTime, unitCaster, _, _, spellId = UnitAura("player", i)
-		if not name then break end
+		local name, _, icon, charges, _, duration, expTime, unitCaster, _, _, spellId = UnitAura("player", i, "HELPFUL")
+		if name == nil then break end
+		
 		if spellId and iconSpellList[spellId] and _G["xanAT"..iconSpellList[spellId]] then
 			sChk[iconSpellList[spellId]] = true
-			--_G["xanAT"..i]:SetAlpha(1)
-			--_G["xanAT"..i.."Count"]:SetText(charges)
-			--_G["xanAT"..i].charges = charges or nil
-			_G["xanAT"..iconSpellList[spellId]]:Show()
+			local tmp = _G["xanAT"..iconSpellList[spellId]]
+			if not tmp.spellIcon or tmp.spellIcon ~= icon then
+				tmp.icon:SetTexture(icon)
+				tmp.spellIcon = icon
+			end
+			if not tmp.endTime or tmp.endTime ~= expTime then
+				tmp.endTime = expTime
+			end
+			if charges and charges > 0 then
+				tmp.spellCharges = charges
+			else
+				tmp.spellCharges = nil
+			end
+			
+			tmp.spellId = spellId
+			tmp:SetScript("OnUpdate", TimerOnUpdate)
+			tmp.count:SetText(tmp.spellCharges)
+			tmp.active = true
+			tmp:Show()
+		end
+	end
+	
+	--to cover all our bases and ignore the if aura is active hide, just scan all the auras, the chance of a player having all 40 filled is remote
+	for i=1, 40 do -- loop through max 40 buffs
+		local name, _, icon, charges, _, duration, expTime, unitCaster, _, _, spellId = UnitAura("player", i, "HARMFUL")
+		if name == nil then break end
+		
+		if spellId and iconSpellList[spellId] and _G["xanAT"..iconSpellList[spellId]] then
+			sChk[iconSpellList[spellId]] = true
+			local tmp = _G["xanAT"..iconSpellList[spellId]]
+			if not tmp.spellIcon or tmp.spellIcon ~= icon then
+				tmp.icon:SetTexture(icon)
+				tmp.spellIcon = icon
+			end
+			if not tmp.endTime or tmp.endTime ~= expTime then
+				tmp.endTime = expTime
+			end
+			if charges and charges > 0 then
+				tmp.spellCharges = charges
+			else
+				tmp.spellCharges = nil
+			end
+			
+			tmp.spellId = spellId
+			tmp:SetScript("OnUpdate", TimerOnUpdate)
+			tmp.count:SetText(tmp.spellCharges)
+			tmp.active = true
+			tmp:Show()
 		end
 	end
 	
 	for q=1, totalFrames do
 		if not sChk[q] and _G["xanAT"..q] then
+			_G["xanAT"..q]:SetScript("OnUpdate", nil)
 			_G["xanAT"..q].active = false
 			_G["xanAT"..q]:Hide()
 		end
