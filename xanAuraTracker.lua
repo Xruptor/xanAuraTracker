@@ -1,16 +1,9 @@
-
-local AddonName, Addon = ...
-if not Addon.auraList then return end --don't run if we have nothing to work with
-
 local band = bit.band
-local playerClass = select(2, UnitClass("player"))
 local playerName = UnitName("player")
-local playerGUID = UnitGUID("player")
-local playerSpec = GetActiveSpecGroup()
 local iconSpellList = {}
 local totalFrames = 0
-
-local auraList = Addon.auraList[playerClass]
+local playerSpec = GetActiveSpecGroup()
+local xdb = {}
 
 --trigger scans
 local triggers = {
@@ -18,11 +11,12 @@ local triggers = {
 	["PLAYER_DEAD"] = true,
 	["PLAYER_ALIVE"] = true,
 	["ZONE_CHANGED_NEW_AREA"] = true,
-	["PLAYER_REGEN_DISABLED"] = true,
-	["PLAYER_REGEN_ENABLED"] = true,
+	--["PLAYER_REGEN_DISABLED"] = true,
+	--["PLAYER_REGEN_ENABLED"] = true,
 	["GLYPH_ADDED"] = true,
 	["GLYPH_REMOVED"] = true,
 	["GLYPH_UPDATED"] = true,
+	["ACTIVE_TALENT_GROUP_CHANGED"] = true,  --changed talents
 }
 
 local f = CreateFrame("frame","xanAuraTracker",UIParent)
@@ -34,6 +28,11 @@ f:SetScript("OnEvent", function(self, event, ...)
 	end 
 end)
 
+local debugf = tekDebug and tekDebug:GetFrame("xanAuraTracker")
+local function Debug(...)
+    if debugf then debugf:AddMessage(string.join(", ", tostringall(...))) end
+end
+
 ----------------------
 --      Enable      --
 ----------------------
@@ -41,17 +40,19 @@ end)
 function f:PLAYER_LOGIN()
 
 	if not xanAT_DB then xanAT_DB = {} end
-	if xanAT_DB.size == nil then xanAT_DB.size = 35 end
-	if xanAT_DB.enable == nil then xanAT_DB.enable = true end
+	if not xanAT_DB[playerName] then xanAT_DB[playerName] = {} end
+	
+	xdb = xanAT_DB[playerName]
+	if xdb.size == nil then xdb.size = 35 end
+	if xdb.enable == nil then xdb.enable = true end
+	if xdb.auraList == nil then xdb.auraList = { buffs = {}, debuffs = {} } end
 
 	self:CreateAnchor("XAT_Anchor", UIParent, "xanAuraTracker Anchor")
-	self:BuildAuraListFrames()
+	--self:BuildAuraListFrames()
 	self:RestoreLayout("XAT_Anchor")
 	
 	--just in case
 	playerName = UnitName("player")
-	playerClass = select(2, UnitClass("player"))
-	playerGUID = UnitGUID("player")
 	playerSpec = GetActiveSpecGroup()
 	
 	SLASH_XANAURATRACKER1 = "/xanat";
@@ -99,12 +100,12 @@ function xanAT_SlashCommand(cmd)
 			XAT_Anchor:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
 			return true
 		elseif c and c:lower() == "enable" then
-			if xanAT_DB.enable then
-				xanAT_DB.enable = false
+			if xdb.enable then
+				xdb.enable = false
 				xanAuraTracker:disableAddon()
 				DEFAULT_CHAT_FRAME:AddMessage("xanAuraTracker: addon disabled!");
 			else
-				xanAT_DB.enable = true
+				xdb.enable = true
 				xanAuraTracker:doFullScan()
 				DEFAULT_CHAT_FRAME:AddMessage("xanAuraTracker: addon enabled!");
 			end
@@ -113,28 +114,38 @@ function xanAT_SlashCommand(cmd)
 			if b then
 				local sizenum = strsub(cmd, b+2)
 				if sizenum and sizenum ~= "" and tonumber(sizenum) then
-					xanAT_DB.size = tonumber(sizenum)
+					xdb.size = tonumber(sizenum)
 					ReloadUI()
 					return true
 				end
 			end
+		elseif c and c:lower() == "settings" then
+			if XanAuraTracker_SettingsFrame:IsVisible() then
+				XanAuraTracker_SettingsFrame:Hide()
+			else
+				XanAuraTracker_SettingsFrame:Show()
+			end
+			return true
 		end
 	end
 
 	DEFAULT_CHAT_FRAME:AddMessage("xanAuraTracker");
+	DEFAULT_CHAT_FRAME:AddMessage("/xanat settings - displays the buff/debuff settings window");
 	DEFAULT_CHAT_FRAME:AddMessage("/xanat reset - resets the frame position");
 	DEFAULT_CHAT_FRAME:AddMessage("/xanat enable - toggles on/off the addon for current player");
 	DEFAULT_CHAT_FRAME:AddMessage("/xanat lock - toggles locked frame");
 	DEFAULT_CHAT_FRAME:AddMessage("/xanat size # - Set the size of the xanAuraTracker icons")
 end
 
+function f:ACTIVE_TALENT_GROUP_CHANGED(self, spec)
+	playerSpec = GetActiveSpecGroup()
+	f:BuildAuraListFrames()
+end
+
 ------------------------------
 --         Frames           --
 ------------------------------
 
-function f:ACTIVE_TALENT_GROUP_CHANGED(self, spec)
-	f:BuildAuraListFrames()
-end
 
 function f:CreateAnchor(name, parent, desc)
 
@@ -207,46 +218,6 @@ function f:CreateAnchor(name, parent, desc)
 	f:RestoreLayout(name)
 end
 
-function f:BuildAuraListFrames()
-	
-	local count = 0
-	iconSpellList = {} --empty it out
-	
-	--hide them all first if they exist
-	for i=1, #auraList do
-		if _G["xanAT"..i] then
-			_G["xanAT"..i].active = false
-			_G["xanAT"..i]:Hide()
-		end
-	end
-	
-	--loop de loop for frame creation
-	for i=1, #auraList do
-		local valChk = auraList[i]
-		--only use the ones that match the player spec or if the spec is set to 0
-		if valChk.spec == playerSpec or valChk.spec <= 0 then
-			local name, _, icon = GetSpellInfo(valChk.spellID)
-			if name then
-				count = count + 1
-				local tmp = f:CreateAuraFrame(count)
-				tmp.active = false
-				tmp.icon:SetTexture(icon)
-				tmp.spellIcon = valChk.spellID
-				tmp:Show()
-				--add spell to check list including referrID's
-				iconSpellList[valChk.spellID] = count
-				if valChk.referrID then
-					for q=1, #valChk.referrID do
-						local namex, _, icon = GetSpellInfo(valChk.referrID[q])
-						iconSpellList[valChk.referrID[q]] = count
-					end
-				end
-			end
-		end
-
-	end
-
-end
 
 local function GetTimeText(timeLeft)
 	local hours, minutes, seconds = 0, 0, 0
@@ -295,8 +266,8 @@ end
 
 function f:CreateAuraFrame(sFrameIndex)
 	
-	local sWdith = xanAT_DB.size
-	local sHeight = xanAT_DB.size
+	local sWdith = xdb.size
+	local sHeight = xdb.size
 
 	if _G["xanAT"..sFrameIndex] then return _G["xanAT"..sFrameIndex] end
 	
@@ -375,18 +346,18 @@ end
 function f:SaveLayout(frame)
 	if type(frame) ~= "string" then return end
 	if not _G[frame] then return end
-	if not xanAT_DB then xanAT_DB = {} end
+	if not xdb.frames then xdb.frames = {} end
 	
-	local opt = xanAT_DB[frame] or nil
+	local opt = xdb.frames[frame] or nil
 
 	if not opt then
-		xanAT_DB[frame] = {
+		xdb.frames[frame] = {
 			["point"] = "CENTER",
 			["relativePoint"] = "CENTER",
 			["xOfs"] = 0,
 			["yOfs"] = 0,
 		}
-		opt = xanAT_DB[frame]
+		opt = xdb.frames[frame]
 		return
 	end
 
@@ -400,18 +371,18 @@ end
 function f:RestoreLayout(frame)
 	if type(frame) ~= "string" then return end
 	if not _G[frame] then return end
-	if not xanAT_DB then xanAT_DB = {} end
+	if not xdb.frames then xdb.frames = {} end
 
-	local opt = xanAT_DB[frame] or nil
+	local opt = xdb.frames[frame] or nil
 
 	if not opt then
-		xanAT_DB[frame] = {
+		xdb.frames[frame] = {
 			["point"] = "CENTER",
 			["relativePoint"] = "CENTER",
 			["xOfs"] = 0,
 			["yOfs"] = 0,
 		}
-		opt = xanAT_DB[frame]
+		opt = xdb.frames[frame]
 	end
 
 	_G[frame]:ClearAllPoints()
@@ -443,45 +414,33 @@ local eventSwitch = {
 }
 
 function f:COMBAT_LOG_EVENT_UNFILTERED(event, timestamp, eventType, hideCaster, sourceGUID, sourceName, srcFlags, sourceRaidFlags, dstGUID, destName, destFlags, destRaidFlags, spellID, spellName, spellSchool, auraType, amount)
-	if not xanAT_DB.enable then return end
-	if sourceGUID ~= playerGUID then return end
-
-	if eventType and eventSwitch[eventType] and spellID and iconSpellList[spellID] then
-		f:doFullScan()
-    end
+	if not xdb.enable then return end
+	if sourceGUID == UnitGUID("player") or sourceGUID == UnitGUID("pet") or band(srcFlags, COMBATLOG_OBJECT_AFFILIATION_MINE) ~= 0 then
+		--if eventType and eventSwitch[eventType] and spellID and iconSpellList[spellID] then
+			f:doFullScan()
+		--end
+	end
 end
 
 function f:doFullScan()
-	if not xanAT_DB.enable then return end
+	if not xdb.enable then return end
 	
 	local sChk = {}
+	
+	if xdb.auraList == nil then xdb.auraList = { buffs = {}, debuffs = {} } end
+	if xdb.auraList.buffs == nil then xdb.auraList.buffs = { } end
+	if xdb.auraList.debuffs == nil then xdb.auraList.debuffs = { } end
+
+	local xbuff = xdb.auraList.buffs
+	local xdebuff = xdb.auraList.debuffs
 	
 	--to cover all our bases and ignore the if aura is active hide, just scan all the auras, the chance of a player having all 40 filled is remote
 	for i=1, 40 do -- loop through max 40 buffs
 		local name, _, icon, charges, _, duration, expTime, unitCaster, _, _, spellId = UnitAura("player", i, "HELPFUL")
 		if name == nil then break end
 		
-		if spellId and iconSpellList[spellId] and _G["xanAT"..iconSpellList[spellId]] then
-			sChk[iconSpellList[spellId]] = true
-			local tmp = _G["xanAT"..iconSpellList[spellId]]
-			if not tmp.spellIcon or tmp.spellIcon ~= icon then
-				tmp.icon:SetTexture(icon)
-				tmp.spellIcon = icon
-			end
-			if not tmp.endTime or tmp.endTime ~= expTime then
-				tmp.endTime = expTime
-			end
-			if charges and charges > 0 then
-				tmp.spellCharges = charges
-			else
-				tmp.spellCharges = nil
-			end
-			
-			tmp.spellId = spellId
-			tmp:SetScript("OnUpdate", TimerOnUpdate)
-			tmp.count:SetText(tmp.spellCharges)
-			tmp.active = true
-			tmp:Show()
+		if spellId and (unitCaster == "player" or unitCaster == "pet") and not xbuff[spellId] then
+			xbuff[spellId] = "0,0"
 		end
 	end
 	
@@ -490,42 +449,15 @@ function f:doFullScan()
 		local name, _, icon, charges, _, duration, expTime, unitCaster, _, _, spellId = UnitAura("player", i, "HARMFUL")
 		if name == nil then break end
 		
-		if spellId and iconSpellList[spellId] and _G["xanAT"..iconSpellList[spellId]] then
-			sChk[iconSpellList[spellId]] = true
-			local tmp = _G["xanAT"..iconSpellList[spellId]]
-			if not tmp.spellIcon or tmp.spellIcon ~= icon then
-				tmp.icon:SetTexture(icon)
-				tmp.spellIcon = icon
-			end
-			if not tmp.endTime or tmp.endTime ~= expTime then
-				tmp.endTime = expTime
-			end
-			if charges and charges > 0 then
-				tmp.spellCharges = charges
-			else
-				tmp.spellCharges = nil
-			end
-			
-			tmp.spellId = spellId
-			tmp:SetScript("OnUpdate", TimerOnUpdate)
-			tmp.count:SetText(tmp.spellCharges)
-			tmp.active = true
-			tmp:Show()
-		end
-	end
-	
-	for q=1, totalFrames do
-		if not sChk[q] and _G["xanAT"..q] then
-			_G["xanAT"..q]:SetScript("OnUpdate", nil)
-			_G["xanAT"..q].active = false
-			_G["xanAT"..q]:Hide()
+		if spellId and (unitCaster == "player" or unitCaster == "pet") and not xdebuff[spellId] then
+			xdebuff[spellId] = "0,0"
 		end
 	end
 
 end
 
 function f:disableAddon()
-	for i=1, #auraList do
+	for i=1, totalFrames do
 		if _G["xanAT"..i] then
 			_G["xanAT"..i]:Hide()
 		end

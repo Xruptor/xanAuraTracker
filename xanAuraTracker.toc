@@ -3,7 +3,9 @@
 ## Notes: A small addon that tracks auras with a small visual display and alert notification. (user configurated)
 ## Author: Xruptor
 ## Version: 1.0
-## SavedVariablesPerCharacter: xanAT_DB
+## SavedVariables: xanAT_DB
 
-config.lua
+libs\LibStub.lua
+libs\tekKonfigScroll.lua
+settings.lua
 xanAuraTracker.lua
